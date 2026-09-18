@@ -1,3 +1,5 @@
+from typing import Optional
+
 import allure
 import requests
 
@@ -10,13 +12,16 @@ class Endpoint:
     TIMEOUT = 5
 
     def __init__(self, token):
-        self.headers["Authorization"] = token
+        self.headers = {
+            "Content-Type": "application/json",
+            "Authorization": token,
+        }
 
     def _set_json(self):
         self.json = self.response.json()
 
     @allure.step("Send GET request")
-    def send_get(self, path: str, params: dict | None = None):
+    def send_get(self, path: str, params: Optional[dict] = None):
         self.response = requests.get(
             self.BASE_URL + path,
             headers=self.headers,
@@ -27,7 +32,7 @@ class Endpoint:
         return self.response
 
     @allure.step("Send POST request")
-    def send_post(self, path: str, json: dict | None = None):
+    def send_post(self, path: str, json: Optional[dict] = None):
         self.response = requests.post(
             self.BASE_URL + path,
             headers=self.headers,
@@ -38,7 +43,7 @@ class Endpoint:
         return self.response
 
     @allure.step("Send PUT request")
-    def send_put(self, path: str, json: dict | None = None):
+    def send_put(self, path: str, json: Optional[dict] = None):
         self.response = requests.put(
             self.BASE_URL + path,
             headers=self.headers,

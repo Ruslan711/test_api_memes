@@ -33,20 +33,30 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python environment
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.12"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
           python -m pytest --version
-          python -m pytest --help | grep -i allure
+          python -m pytest --help | grep -i allure || true
 
       - name: run all tests
         if: ${{ github.event_name == 'push' || github.event.inputs.deployment_target == 'all' }}
-        run: python -m pytest -v --alluredir=allure-results
+        run: |
+          set +e
+          python -m pytest -v --alluredir=allure-results 2>&1 | tee pytest_output.txt
+          code=${PIPESTATUS[0]}
+          {
+            echo "## Pytest output (exit=$code)"
+            echo '```'
+            cat pytest_output.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $code
 
       - name: run smoke tests
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_target == 'smoke' }}
@@ -62,11 +72,19 @@ jobs:
 
       - name: Show allure results
         if: always()
-        run: ls -la allure-results
+        run: ls -la allure-results || echo "allure-results missing"
+
+      - name: Upload pytest log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-log
+          path: pytest_output.txt
+          if-no-files-found: ignore
 
       - name: Install Java
         if: always()
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: "microsoft"
           java-version: "17"
@@ -80,7 +98,12 @@ jobs:
 
       - name: Generate report
         if: always()
-        run: allure generate -c allure-results -o _site
+        run: |
+          if [ -d allure-results ]; then
+            allure generate -c allure-results -o _site
+          else
+            echo "Skip Allure generate: no allure-results"
+          fi
 
       - name: Save allure report
         if: always()
@@ -88,6 +111,7 @@ jobs:
         with:
           name: _site
           path: _site
+          if-no-files-found: ignore
           retention-days: 1
 
   publish-report:
