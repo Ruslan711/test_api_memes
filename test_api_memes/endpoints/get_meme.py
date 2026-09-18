@@ -23,5 +23,8 @@ class GetMeme(Endpoint):
             f"http://memesapi.course.qa-practice.com/meme/{meme_id}",
             headers=headers
         )
-        self.json = self.response.json()
+        if self.response.ok and self.response.content:
+            self.json = self.response.json()
+        else:
+            self.json = None
         return self.response
