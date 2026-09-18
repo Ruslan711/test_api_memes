@@ -38,27 +38,31 @@ jobs:
           python-version: "3.10"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pytest --version
+          python -c "import allure_pytest; print('allure-pytest OK')"
 
       - name: run all tests
         if: ${{ github.event_name == 'push' || github.event.inputs.deployment_target == 'all' }}
-        run: pytest --alluredir=allure-results
-        continue-on-error: true
+        run: python -m pytest -v --alluredir=allure-results
 
       - name: run smoke tests
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_target == 'smoke' }}
-        run: pytest -m smoke --alluredir=allure-results
-        continue-on-error: true
+        run: python -m pytest -v -m smoke --alluredir=allure-results
 
       - name: run regression tests
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_target == 'regression' }}
-        run: pytest -m regression --alluredir=allure-results
-        continue-on-error: true
+        run: python -m pytest -v -m regression --alluredir=allure-results
 
       - name: run extended tests
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_target == 'extended' }}
-        run: pytest -m extended --alluredir=allure-results
-        continue-on-error: true
+        run: python -m pytest -v -m extended --alluredir=allure-results
+
+      - name: Show allure results
+        if: always()
+        run: ls -la allure-results || echo "allure-results missing"
 
       - name: Get Allure history
         uses: actions/checkout@v4
@@ -92,7 +96,12 @@ jobs:
 
       - name: Generate report
         if: always()
-        run: allure generate -c allure-results -o _site
+        run: |
+          if [ ! -d allure-results ] || [ -z "$(ls -A allure-results 2>/dev/null | grep -v history)" ]; then
+            echo "ERROR: allure-results is empty — tests did not produce report data"
+            exit 1
+          fi
+          allure generate -c allure-results -o _site
 
       - name: Save allure report
         if: always()
@@ -105,7 +114,7 @@ jobs:
   publish-report:
     name: Report publication
     needs: run-tests
-    if: always()
+    if: always() && needs.run-tests.result == 'success'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
