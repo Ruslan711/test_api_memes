@@ -42,7 +42,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
           python -m pytest --version
-          python -c "import allure_pytest; print('allure-pytest OK')"
+          python -m pytest --help | grep -i allure
 
       - name: run all tests
         if: ${{ github.event_name == 'push' || github.event.inputs.deployment_target == 'all' }}
@@ -62,15 +62,7 @@ jobs:
 
       - name: Show allure results
         if: always()
-        run: ls -la allure-results || echo "allure-results missing"
-
-      - name: Get Allure history
-        uses: actions/checkout@v4
-        if: always()
-        continue-on-error: true
-        with:
-          ref: gh-pages
-          path: gh-pages
+        run: ls -la allure-results
 
       - name: Install Java
         if: always()
@@ -86,22 +78,9 @@ jobs:
           && sudo tar -zxvf allure-2.24.1.tgz -C /opt/
           && sudo ln -s /opt/allure-2.24.1/bin/allure /usr/bin/allure
 
-      - name: Prepare Allure history
-        if: always()
-        run: |
-          if [ -d gh-pages/history ]; then
-            mkdir -p allure-results/history
-            cp -r gh-pages/history/* allure-results/history/ || true
-          fi
-
       - name: Generate report
         if: always()
-        run: |
-          if [ ! -d allure-results ] || [ -z "$(ls -A allure-results 2>/dev/null | grep -v history)" ]; then
-            echo "ERROR: allure-results is empty — tests did not produce report data"
-            exit 1
-          fi
-          allure generate -c allure-results -o _site
+        run: allure generate -c allure-results -o _site
 
       - name: Save allure report
         if: always()
@@ -114,7 +93,7 @@ jobs:
   publish-report:
     name: Report publication
     needs: run-tests
-    if: always() && needs.run-tests.result == 'success'
+    if: success()
     runs-on: ubuntu-latest
     environment:
       name: github-pages
