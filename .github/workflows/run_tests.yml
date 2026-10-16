@@ -1,41 +1,22 @@
-name: Python autotests
+name: Start tests
 
 on:
   push:
+    branches:
+      - master
   pull_request:
-  workflow_dispatch:
-    inputs:
-      deployment_target:
-        description: choose tests set
-        required: true
-        type: choice
-        default: smoke
-        options:
-          - smoke
-          - regression
-          - extended
-          - all
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
+    branches:
+      - master
 
 jobs:
-  run-tests:
+  test:
     runs-on: ubuntu-latest
-    name: Run autotests
-    env:
-      PYTHONPATH: ${{ github.workspace }}
+
     steps:
-      - name: Checkout autotests
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python environment
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -43,70 +24,17 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
+          pip install -r requirements.txt
 
-      - name: run all tests
-        if: ${{ github.event_name == 'push' || github.event_name == 'pull_request' || github.event.inputs.deployment_target == 'all' }}
-        run: python -m pytest -v --alluredir=allure-results
+      - name: Run tests
+        run: pytest --junitxml=report.xml --html=report.html --self-contained-html
 
-      - name: run smoke tests
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_target == 'smoke' }}
-        run: python -m pytest -v -m smoke --alluredir=allure-results
-
-      - name: run regression tests
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_target == 'regression' }}
-        run: python -m pytest -v -m regression --alluredir=allure-results
-
-      - name: run extended tests
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deployment_target == 'extended' }}
-        run: python -m pytest -v -m extended --alluredir=allure-results
-
-      - name: Install Java
-        if: always()
-        uses: actions/setup-java@v4
-        with:
-          distribution: "temurin"
-          java-version: "17"
-
-      - name: Install Allure
-        if: always()
-        run: >
-          sudo wget https://github.com/allure-framework/allure2/releases/download/2.24.1/allure-2.24.1.tgz
-          && sudo tar -zxvf allure-2.24.1.tgz -C /opt/
-          && sudo ln -s /opt/allure-2.24.1/bin/allure /usr/bin/allure
-
-      - name: Generate report
-        if: always()
-        run: allure generate -c allure-results -o _site
-
-      - name: Save allure report
+      - name: Upload report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: _site
-          path: _site
-          retention-days: 1
-
-  publish-report:
-    name: Report publication
-    needs: run-tests
-    if: success() && github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: _site
-          path: _site
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          name: test-reports
+          path: |
+            report.xml
+            report.html
+          retention-days: 14
